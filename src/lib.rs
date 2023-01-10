@@ -1,12 +1,17 @@
 use fnv::FnvHashMap;
 use itertools::Itertools;
-use std::hash::Hash;
+use std::{fmt::Display, hash::Hash};
+
+pub mod dot;
 
 type VersionSpacePointer = usize;
 
-pub trait Exp: PartialEq + Clone + Hash + Eq {}
+pub trait Exp: PartialEq + Clone + Hash + Eq + Display {}
 
-pub trait Opt<E>: Hash + Eq + PartialEq + Clone {
+impl Exp for i64 {}
+impl Exp for bool {}
+
+pub trait Opt<E>: Display + Hash + Eq + PartialEq + Clone {
     fn construct_exp(&self, _: &[E]) -> E;
 }
 
@@ -51,6 +56,17 @@ pub enum VersionSpace<O: Opt<E>, E: PartialEq + Clone + Hash + Eq> {
     Join(O, Vec<VersionSpacePointer>),
 }
 
+impl<O: Opt<E>, E: Exp> Display for VersionSpace<O, E> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            VersionSpace::Empty => write!(f, "Ø"),
+            VersionSpace::VS(e) => write!(f, "{e}"),
+            VersionSpace::Union(_) => write!(f, "U"),
+            VersionSpace::Join(o, _) => write!(f, "{o}<sub>x</sub>"),
+        }
+    }
+}
+
 impl<O: Opt<E>, E: Exp> VersionSpace<O, E> {
     pub fn to_exprs(&self, table: &VersionTable<O, E>) -> Vec<E> {
         match self {
@@ -60,8 +76,7 @@ impl<O: Opt<E>, E: Exp> VersionSpace<O, E> {
             }
             VersionSpace::Union(v_set) => v_set
                 .iter()
-                .map(|e| table.get(*e).map(|v| v.to_exprs(table)))
-                .flatten()
+                .filter_map(|e| table.get(*e).map(|v| v.to_exprs(table)))
                 .flatten()
                 .collect(),
             VersionSpace::Join(o, v_list) if v_list.is_empty() => {
