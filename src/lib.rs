@@ -108,7 +108,8 @@ impl<O: Opt<E>, E: Exp> VersionSpace<O, E> {
                     VersionSpace::Empty
                 }
             }
-            (v1 @ VersionSpace::VS(_), VersionSpace::Union(v_list)) => {
+            (v1 @ VersionSpace::VS(_), VersionSpace::Union(v_list))
+            | (VersionSpace::Union(v_list), v1 @ VersionSpace::VS(_)) => {
                 let new_spaces: Vec<_> = v_list
                     .iter()
                     .map(|v| table.get(*v).unwrap().clone().intersection(v1, table))
@@ -120,13 +121,36 @@ impl<O: Opt<E>, E: Exp> VersionSpace<O, E> {
                     VersionSpace::Union(new_spaces.into_iter().map(|v| table.add(v)).collect())
                 }
             }
-            (VersionSpace::VS(_), VersionSpace::Join(_, _)) => todo!(),
-            (VersionSpace::Union(_), VersionSpace::VS(_)) => todo!(),
+            (VersionSpace::VS(_), VersionSpace::Join(_, _))
+            | (VersionSpace::Join(_, _), VersionSpace::VS(_)) => VersionSpace::Empty,
             (VersionSpace::Union(_), VersionSpace::Union(_)) => todo!(),
-            (VersionSpace::Union(_), VersionSpace::Join(_, _)) => todo!(),
-            (VersionSpace::Join(_, _), VersionSpace::VS(_)) => todo!(),
-            (VersionSpace::Join(_, _), VersionSpace::Union(_)) => todo!(),
-            (VersionSpace::Join(_, _), VersionSpace::Join(_, _)) => todo!(),
+            (VersionSpace::Union(_), VersionSpace::Join(_, _))
+            | (VersionSpace::Join(_, _), VersionSpace::Union(_)) => todo!(),
+            (VersionSpace::Join(o1, l1), VersionSpace::Join(o2, l2)) => {
+                if o1 == o2 {
+                    let args: Vec<_> = l1
+                        .iter()
+                        .zip(l2.iter())
+                        .map(|(v1, v2)| {
+                            table
+                                .get(*v1)
+                                .unwrap()
+                                .clone()
+                                .intersection(&table.get(*v2).unwrap().clone(), table)
+                        })
+                        .collect();
+                    if args.iter().any(|a| a == &VersionSpace::Empty) {
+                        VersionSpace::Empty
+                    } else {
+                        VersionSpace::Join(
+                            o1.clone(),
+                            args.into_iter().map(|a| table.add(a)).collect(),
+                        )
+                    }
+                } else {
+                    VersionSpace::Empty
+                }
+            }
         }
     }
 }
